@@ -14,7 +14,7 @@
 
   $(`
   <style>
-    .insights_toolbar { position:absolute; top: -48px; right: 0px; user-select: none; }
+    .insights_toolbar { position:absolute; bottom: -30px; right: 3px; user-select: none; }
     .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
     .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
     .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 3px 6px; cursor: pointer; border-radius: 1px; }
