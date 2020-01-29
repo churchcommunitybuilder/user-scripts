@@ -10,7 +10,7 @@
 
 (function() {
     const $ = jQuery;
-    let contentArea, dataGroup, query, runQueryButton;
+    let contentArea, query, runQueryButton;
 
   $(`
   <style>
@@ -175,17 +175,11 @@
     };
 
     const renderDataGroup = () => {
-        dataGroup = $('#itg-Data');
-        if (dataGroup.length == 0) {
-            dataGroup = makeGroup('Data');
-            window.setInterval(renderDataGroup, 500);
-        }
-
+        const dataGroup = makeGroup('Data');
         const hasCount = query.indexOf('count(*)') > 0;
         const priorFacet = getSearchParam('priorFacet');
         const priorTimeSeries = getSearchParam('priorTimeSeries');
 
-        dataGroup.find('span').remove();
         dataGroup.append(makeButton('-', () => actionPrepForGraph(false), hasCount));
         dataGroup.append(makeButton('+', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)));
         return dataGroup;
