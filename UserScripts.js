@@ -1,10 +1,7 @@
   const UserScripts = (id, scriptName) => {
-    if (!window.jQuery)
-      loadScript('jQuery', 'https://code.jquery.com/jquery-3.4.1.min.js');
-
     const baseScriptUrl = 'https://github.com/churchcommunitybuilder/user-scripts/blob/master/';
 
-    const loadScript = (id, scriptUrl) => {
+    this.loadScript = (id, scriptUrl) => {
       var resource = document.createElement('script');
       resource.async = "true";
       resource.src = scriptUrl;
@@ -13,6 +10,9 @@
       var container = document.getElementsByTagName('head')[0];
       container.appendChild(resource);
     }
+
+    if (!window.jQuery)
+      this.loadScript('jQuery', 'https://code.jquery.com/jquery-3.4.1.min.js');
 
     if (scriptName) {
       (function() {
