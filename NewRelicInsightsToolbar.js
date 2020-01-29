@@ -9,155 +9,216 @@
 // ==/UserScript==
 
 (function() {
-  const $ = jQuery;
-  let contentArea, query, runQueryButton;
+    const $ = jQuery;
+    let contentArea, dataGroup, query, runQueryButton;
 
-$(`
-<style>
-  .insights_toolbar { position:absolute; top: -48px; right: 0px; }
-  .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; }
-  .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
-  .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 3px 6px; cursor: pointer; border-radius: 1px }
-</style>
-`).appendTo('head');
+  $(`
+  <style>
+    .insights_toolbar { position:absolute; top: -48px; right: 0px; user-select: none; }
+    .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
+    .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
+    .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 3px 6px; cursor: pointer; border-radius: 1px; }
+    .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
+  </style>
+  `).appendTo('head');
 
-  const executeQuery = () => {
-      const params = new URLSearchParams(window.location.search);
-      params.set('query', query);
-      window.location.search = params.toString();
-  }
+    const getSearchParam = param => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(param);
+    };
 
-  const getQueryValue = section => {
-      const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-      const index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
-      if (!index && index !== 0) return null;
-      let value = '';
+    const executeQuery = props => {
+        const params = new URLSearchParams(window.location.search);
+        params.set('query', query);
 
-      switch (section) {
-          case 'since':
-          case 'until':
-          case 'facet':
-              value = parts[index + 1];
-              break;
-          case 'timeseries':
-              value = parts[index + 1] + ' ' + parts[index + 2];
-              break;
-      };
+        for(var key in props) {
+            if(props.hasOwnProperty(key) && typeof props[key] !== 'function') {
+                params.set(key, props[key]);
+            }
+        }
 
-      return value.replace(/'/g, '');;
-  };
+        window.location.search = params.toString();
+    }
 
-  const setQueryValue = (section, value) => {
-      const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-      const index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
-      if (!index && index !== 0) return;
+    const getQueryValue = section => {
+        const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
+        let index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
+        if (!index && index !== 0) return null;
+        let value = '';
 
-      switch (section) {
-          case 'since':
-          case 'until':
-          case 'facet':
-              parts[index + 1] = `'${value}'`;
-              break;
-          case 'timeseries':
-              parts[index + 1] = value.split(' ')[0];
-              parts[index + 2] = value.split(' ')[1];
-              break;
-      };
+        switch (section) {
+            case 'since':
+            case 'until':
+            case 'facet':
+                value = parts[++index];
+                while (value.lastIndexOf(',') === value.length -1) {
+                    value += ' ' + parts[++index];
+                }
+                break;
+            case 'timeseries':
+                value = parts[++index] + ' ' + parts[++index];
+                break;
+        };
 
-      query = parts.join(' ');
-  };
+        return value.replace(/'/g, '');;
+    };
 
-  const getTimespan = () => {
-      let since = getQueryValue('since');
-      let until = getQueryValue('until');
-      if (!since || !until) return null;
+    const setQueryValue = (section, value) => {
+        const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
+        const index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
+        if (!index && index !== 0) return;
 
-      const timespan = {
-          since,
-          until,
-          momentSince: moment(since),
-          momentUntil: moment(until),
-      };
-      timespan.difference = timespan.momentUntil.diff(timespan.momentSince, 'seconds');
-      return timespan;
-  };
+        switch (section) {
+            case 'since':
+            case 'until':
+            case 'facet':
+                parts[index + 1] = `'${value}'`;
+                break;
+            case 'timeseries':
+                parts[index + 1] = value.split(' ')[0];
+                parts[index + 2] = value.split(' ')[1];
+                break;
+        };
 
-  const actionCurrentTimespan = () => {
-      const timespan = getTimespan();
-      if (!timespan) return;
+        query = parts.join(' ');
+    };
 
-      const since = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
-      const until = moment().format('YYYY-MM-DD HH:mm:ss');
-      setQueryValue('since', since);
-      setQueryValue('until', until);
-      executeQuery();
-  };
+    const getTimespan = () => {
+        let since = getQueryValue('since');
+        let until = getQueryValue('until');
+        if (!since || !until) return null;
 
-  const actionNextTimespan = () => {
-      const timespan = getTimespan();
-      if (!timespan) return;
+        const timespan = {
+            since,
+            until,
+            momentSince: moment(since),
+            momentUntil: moment(until),
+        };
+        timespan.difference = timespan.momentUntil.diff(timespan.momentSince, 'seconds');
+        return timespan;
+    };
 
-      const since = timespan.momentSince.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-      const until = timespan.momentUntil.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-      setQueryValue('since', since);
-      setQueryValue('until', until);
-      executeQuery();
-  };
+    const actionCurrentTimespan = () => {
+        const timespan = getTimespan();
+        if (!timespan) return;
 
-  const actionPreviousTimespan = () => {
-      const timespan = getTimespan();
-      if (!timespan) return;
+        const since = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
+        const until = moment().format('YYYY-MM-DD HH:mm:ss');
+        setQueryValue('since', since);
+        setQueryValue('until', until);
+        executeQuery();
+    };
 
-      const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-      const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-      setQueryValue('since', since);
-      setQueryValue('until', until);
-      executeQuery();
-  };
+    const actionNextTimespan = () => {
+        const timespan = getTimespan();
+        if (!timespan) return;
 
-  const makeGroup = text => {
-      return $(`<div class="group"><div class="title">${text}</div></div>`);
-  };
+        const since = timespan.momentSince.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        const until = timespan.momentUntil.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        setQueryValue('since', since);
+        setQueryValue('until', until);
+        executeQuery();
+    };
 
-  const makeButton = (text, onClick) => {
-      return $(`<span class="btn-primary">${text}</span>`).click(onClick ? onClick : () => null);
-  };
+    const actionPreviousTimespan = () => {
+        const timespan = getTimespan();
+        if (!timespan) return;
 
-  const renderTimeGroup = () => {
-      const timeGroup = makeGroup('Time');
-      timeGroup.append(makeButton('&lt;', actionPreviousTimespan));
-      timeGroup.append(makeButton('Now', actionCurrentTimespan));
-      timeGroup.append(makeButton('&gt;', actionNextTimespan));
-      return timeGroup;
-  };
+        const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        setQueryValue('since', since);
+        setQueryValue('until', until);
+        executeQuery();
+    };
 
-  const renderToolbar = () => {
-      let toolbar = $('.insights_toolbar');
+    const actionPrepForGraph = showGraph => {
+        let params = {};
 
-      if (toolbar.length === 0) {
-          toolbar = $('<div class="insights_toolbar" />');
-          toolbar.append(renderTimeGroup);
+        if (showGraph) {
+            query = query.replace(/ \* /,' count(*) ');
 
-          $('.query_editor_box').prepend(toolbar);
-      }
-  };
+            const priorFacet = getSearchParam('priorFacet');
+            const priorTimeSeries = getSearchParam('priorTimeSeries');
+            if (priorFacet) query += ' FACET ' + priorFacet;
+            if (priorTimeSeries) query += ' TIMESERIES ' + priorTimeSeries;
+        } else {
+            params = {
+                priorFacet: getQueryValue('facet'),
+                priorTimeSeries: getQueryValue('timeseries')
+            };
 
-  const processUpdatedContent = () => {
-      query = (new URLSearchParams(window.location.search)).get('query');
-      contentArea = $('.ace_content');
-      const timespan = getTimespan();
-      if (!timespan) return;
+            query = query.replace(/ count\(\*\) /,' * ');
+            query = query.replace(new RegExp(` FACET ${params.priorFacet}`, "ig"), '');
+            query = query.replace(new RegExp(` TIMESERIES ${params.priorTimeSeries}`, "ig"), '');
+        }
 
-      renderToolbar();
-  };
+        executeQuery(params);
+    };
 
-  const initTimeWalker = () => {
-      runQueryButton = $('.query_editor_controls .btn-primary');
-      if (runQueryButton.length) {
-          runQueryButton.click(processUpdatedContent);
-          processUpdatedContent();
-      }
-  };
+    const makeGroup = text => {
+        return $(`<div id="itg-${text}" class="group"><div class="title">${text}</div></div>`);
+    };
 
-  $.getScript('https://momentjs.com/downloads/moment.min.js', initTimeWalker)
-})();
+    const makeButton = (text, onClick, enabled = true) => {
+        const button = $(`<span class="btn-primary">${text}</span>`);
+        button.click(enabled && onClick ? onClick : () => null);
+        if (!enabled) button.addClass('disabled');
+        return button;
+    };
+
+    const renderTimeGroup = () => {
+        const timeGroup = makeGroup('Time');
+        timeGroup.append(makeButton('&lt;', actionPreviousTimespan));
+        timeGroup.append(makeButton('Now', actionCurrentTimespan));
+        timeGroup.append(makeButton('&gt;', actionNextTimespan));
+        return timeGroup;
+    };
+
+    const renderDataGroup = () => {
+        dataGroup = $('#itg-Data');
+        if (dataGroup.length == 0) {
+            dataGroup = makeGroup('Data');
+            window.setInterval(renderDataGroup, 500);
+        }
+
+        const hasCount = query.indexOf('count(*)') > 0;
+        const priorFacet = getSearchParam('priorFacet');
+        const priorTimeSeries = getSearchParam('priorTimeSeries');
+
+        dataGroup.find('span').remove();
+        dataGroup.append(makeButton('-', () => actionPrepForGraph(false), hasCount));
+        dataGroup.append(makeButton('+', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)));
+        return dataGroup;
+    };
+
+    const renderToolbar = () => {
+        let toolbar = $('.insights_toolbar');
+
+        if (toolbar.length === 0) {
+            toolbar = $('<div class="insights_toolbar" />');
+            toolbar.append(renderTimeGroup);
+            toolbar.append(renderDataGroup);
+
+            $('.query_editor_box').prepend(toolbar);
+        }
+    };
+
+    const processUpdatedContent = () => {
+        query = (new URLSearchParams(window.location.search)).get('query');
+        contentArea = $('.ace_content');
+        const timespan = getTimespan();
+        if (!timespan) return;
+
+        renderToolbar();
+    };
+
+    const initTimeWalker = () => {
+        runQueryButton = $('.query_editor_controls .btn-primary');
+        if (runQueryButton.length) {
+            runQueryButton.click(processUpdatedContent);
+            processUpdatedContent();
+        }
+    };
+
+    $.getScript('https://momentjs.com/downloads/moment.min.js', initTimeWalker)
+  })();
