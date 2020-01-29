@@ -14,6 +14,7 @@
 
   $(`
   <style>
+    .query_editor_box { min-height: 65px; }
     .insights_toolbar { position:absolute; bottom: -30px; right: 3px; user-select: none; }
     .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
     .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
@@ -43,7 +44,7 @@
     const getQueryValue = section => {
         const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
         let index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
-        if (!index && index !== 0) return null;
+        if (index < 1 && index !== 0) return null;
         let value = '';
 
         switch (section) {
@@ -66,19 +67,23 @@
     const setQueryValue = (section, value) => {
         const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
         const index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
-        if (!index && index !== 0) return;
 
-        switch (section) {
-            case 'since':
-            case 'until':
-            case 'facet':
-                parts[index + 1] = `'${value}'`;
-                break;
-            case 'timeseries':
-                parts[index + 1] = value.split(' ')[0];
-                parts[index + 2] = value.split(' ')[1];
-                break;
-        };
+        if (index < 0) {
+            parts.push(section.toUpperCase());
+            parts.push(value);
+        } else {
+            switch (section) {
+                case 'since':
+                case 'until':
+                case 'facet':
+                    parts[index + 1] = value;
+                    break;
+                case 'timeseries':
+                    parts[index + 1] = value.split(' ')[0];
+                    parts[index + 2] = value.split(' ')[1];
+                    break;
+            }
+        }
 
         query = parts.join(' ');
     };
@@ -99,13 +104,10 @@
     };
 
     const actionCurrentTimespan = () => {
-        const timespan = getTimespan();
-        if (!timespan) return;
-
         const since = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
         const until = moment().format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', since);
-        setQueryValue('until', until);
+        setQueryValue('since', `'${since}'`);
+        setQueryValue('until', `'${until}'`);
         executeQuery();
     };
 
@@ -115,8 +117,8 @@
 
         const since = timespan.momentSince.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
         const until = timespan.momentUntil.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', since);
-        setQueryValue('until', until);
+        setQueryValue('since', `'${since}'`);
+        setQueryValue('until', `'${until}'`);
         executeQuery();
     };
 
@@ -126,8 +128,8 @@
 
         const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
         const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', since);
-        setQueryValue('until', until);
+        setQueryValue('since', `'${since}'`);
+        setQueryValue('until', `'${until}'`);
         executeQuery();
     };
 
@@ -167,10 +169,13 @@
     };
 
     const renderTimeGroup = () => {
+        const timespan = getTimespan();
         const timeGroup = makeGroup('Time');
-        timeGroup.append(makeButton('&lt;', actionPreviousTimespan));
+        const hasTimeParts = timespan !== null && timespan.since && timespan.until;
+
+        timeGroup.append(makeButton('&lt;', actionPreviousTimespan, hasTimeParts));
         timeGroup.append(makeButton('Now', actionCurrentTimespan));
-        timeGroup.append(makeButton('&gt;', actionNextTimespan));
+        timeGroup.append(makeButton('&gt;', actionNextTimespan, hasTimeParts));
         return timeGroup;
     };
 
@@ -199,10 +204,6 @@
 
     const processUpdatedContent = () => {
         query = (new URLSearchParams(window.location.search)).get('query');
-        contentArea = $('.ace_content');
-        const timespan = getTimespan();
-        if (!timespan) return;
-
         renderToolbar();
     };
 
