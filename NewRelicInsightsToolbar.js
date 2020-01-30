@@ -34,7 +34,7 @@
 
         for(var key in props) {
             if(props.hasOwnProperty(key) && typeof props[key] !== 'function') {
-                params.set(key, props[key]);
+                props[key] ? params.set(key, props[key]) : params.delete(key);
             }
         }
 
@@ -42,21 +42,22 @@
     }
 
     const getQueryValue = section => {
+        section = section.toUpperCase();
         const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-        let index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
+        let index = parts.findIndex(part => part.toUpperCase() === section);
         if (index < 1 && index !== 0) return null;
         let value = '';
 
         switch (section) {
-            case 'since':
-            case 'until':
-            case 'facet':
+            case 'SINCE':
+            case 'UNTIL':
+            case 'FACET':
                 value = parts[++index];
                 while (value.lastIndexOf(',') === value.length -1) {
                     value += ' ' + parts[++index];
                 }
                 break;
-            case 'timeseries':
+            case 'TIMESERIES':
                 value = parts[++index] + ' ' + parts[++index];
                 break;
         };
@@ -65,20 +66,21 @@
     };
 
     const setQueryValue = (section, value) => {
+        section = section.toUpperCase();
         const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-        const index = parts.findIndex(part => part.toLowerCase() === section.toLowerCase());
+        const index = parts.findIndex(part => part.toUpperCase() === section);
 
         if (index < 0) {
-            parts.push(section.toUpperCase());
+            parts.push(section);
             parts.push(value);
         } else {
             switch (section) {
-                case 'since':
-                case 'until':
-                case 'facet':
+                case 'SINCE':
+                case 'UNTIL':
+                case 'FACET':
                     parts[index + 1] = value;
                     break;
-                case 'timeseries':
+                case 'TIMESERIES':
                     parts[index + 1] = value.split(' ')[0];
                     parts[index + 2] = value.split(' ')[1];
                     break;
@@ -89,8 +91,8 @@
     };
 
     const getTimespan = () => {
-        let since = getQueryValue('since');
-        let until = getQueryValue('until');
+        let since = getQueryValue('SINCE');
+        let until = getQueryValue('UNTIL');
         if (!since || !until) return null;
 
         const timespan = {
@@ -106,8 +108,8 @@
     const actionCurrentTimespan = () => {
         const since = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
         const until = moment().format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', `'${since}'`);
-        setQueryValue('until', `'${until}'`);
+        setQueryValue('SINCE', `'${since}'`);
+        setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
     };
 
@@ -117,8 +119,8 @@
 
         const since = timespan.momentSince.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
         const until = timespan.momentUntil.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', `'${since}'`);
-        setQueryValue('until', `'${until}'`);
+        setQueryValue('SINCE', `'${since}'`);
+        setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
     };
 
@@ -128,13 +130,13 @@
 
         const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
         const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        setQueryValue('since', `'${since}'`);
-        setQueryValue('until', `'${until}'`);
+        setQueryValue('SINCE', `'${since}'`);
+        setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
     };
 
     const actionPrepForGraph = showGraph => {
-        let params = {};
+        let params = { priorFacet: null, priorTimeSeries: null };
 
         if (showGraph) {
             query = query.replace(/ \* /,' count(*) ');
@@ -145,8 +147,8 @@
             if (priorTimeSeries) query += ' TIMESERIES ' + priorTimeSeries;
         } else {
             params = {
-                priorFacet: getQueryValue('facet'),
-                priorTimeSeries: getQueryValue('timeseries')
+                priorFacet: getQueryValue('FACET'),
+                priorTimeSeries: getQueryValue('TIMESERIES')
             };
 
             query = query.replace(/ count\(\*\) /,' * ');
@@ -190,21 +192,18 @@
         return dataGroup;
     };
 
-    const renderToolbar = () => {
+    const processUpdatedContent = () => {
+        query = (new URLSearchParams(window.location.search)).get('query');
         let toolbar = $('.insights_toolbar');
 
         if (toolbar.length === 0) {
             toolbar = $('<div class="insights_toolbar" />');
-            toolbar.append(renderTimeGroup);
-            toolbar.append(renderDataGroup);
-
             $('.query_editor_box').prepend(toolbar);
         }
-    };
 
-    const processUpdatedContent = () => {
-        query = (new URLSearchParams(window.location.search)).get('query');
-        renderToolbar();
+        toolbar.empty();
+        toolbar.append(renderTimeGroup);
+        toolbar.append(renderDataGroup);
     };
 
     const initTimeWalker = () => {
