@@ -181,15 +181,15 @@
         return timeGroup;
     };
 
-    const renderDataGroup = () => {
-        const dataGroup = makeGroup('Data');
+    const renderGraphGroup = () => {
+        const graphGroup = makeGroup('Graph');
         const hasCount = query.indexOf('count(*)') > 0;
         const priorFacet = getSearchParam('priorFacet');
         const priorTimeSeries = getSearchParam('priorTimeSeries');
 
-        dataGroup.append(makeButton('-', () => actionPrepForGraph(false), hasCount));
-        dataGroup.append(makeButton('+', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)));
-        return dataGroup;
+        graphGroup.append(makeButton('-', () => actionPrepForGraph(false), hasCount));
+        graphGroup.append(makeButton('+', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)));
+        return graphGroup;
     };
 
     const processUpdatedContent = () => {
@@ -203,7 +203,7 @@
 
         toolbar.empty();
         toolbar.append(renderTimeGroup);
-        toolbar.append(renderDataGroup);
+        toolbar.append(renderGraphGroup);
     };
 
     const initTimeWalker = () => {
