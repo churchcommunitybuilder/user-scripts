@@ -135,6 +135,15 @@
         executeQuery();
     };
 
+    const actionSetMaxTimeSeries = () => {
+        const timespan = getTimespan();
+        if (!timespan) return;
+
+        const max = Math.ceil(timespan.difference / 60 / 366);
+        setQueryValue('TIMESERIES', `${max} minutes`);
+        executeQuery();
+    };
+
     const actionPrepForGraph = showGraph => {
         let params = { priorFacet: null, priorTimeSeries: null };
 
@@ -176,8 +185,9 @@
         const hasTimeParts = timespan !== null && timespan.since && timespan.until;
 
         timeGroup.append(makeButton('&lt;', actionPreviousTimespan, hasTimeParts));
-        timeGroup.append(makeButton('Now', actionCurrentTimespan));
         timeGroup.append(makeButton('&gt;', actionNextTimespan, hasTimeParts));
+        timeGroup.append(makeButton('Now', actionCurrentTimespan));
+        timeGroup.append(makeButton('Ts', actionSetMaxTimeSeries, hasTimeParts));
         return timeGroup;
     };
 
