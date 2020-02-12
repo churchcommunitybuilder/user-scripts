@@ -10,7 +10,8 @@
 
 (function() {
     const $ = jQuery;
-    let contentArea, query, runQueryButton;
+    let query = '';
+    let contentArea, runQueryButton;
 
   $(`
   <style>
@@ -203,7 +204,7 @@
     };
 
     const processUpdatedContent = () => {
-        query = (new URLSearchParams(window.location.search)).get('query');
+        query = (new URLSearchParams(window.location.search)).get('query') || '';
         let toolbar = $('.insights_toolbar');
 
         if (toolbar.length === 0) {
