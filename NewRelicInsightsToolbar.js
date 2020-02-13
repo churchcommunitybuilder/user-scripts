@@ -8,12 +8,9 @@
 // @grant        Feel free to do whatever you want with this
 // ==/UserScript==
 
-// TODO: add support for more since / until formats!
-
 (function() {
     const $ = jQuery;
     let queryObject;
-    let contentArea, runQueryButton;
 
     const nrqlTokens = [
         'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'SINCE', 'UNTIL', 'COMPARE WITH', 'WITH TIMESERIES', 'TIMESERIES', 'AUTO',
@@ -25,9 +22,13 @@
     .insights_toolbar { position:absolute; bottom: -32px; right: 3px; user-select: none; }
     .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
     .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
-    .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; }
+    .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; height: 27px; min-width: 27px; }
     .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
-  </style>
+    .insights_toolbar .data_icon { background: url(https://1tskcg39n5iu1jl9xp2ze2ma-wpengine.netdna-ssl.com/wp-content/themes/spanning/images/icons/white/SPAN_WH_Icon_Whitepaper.png);
+                                   background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
+    .insights_toolbar .graph_icon { background: url(https://www.clearpeach.com/wp-content/uploads/bar-graph-icon-300x300.png);
+                                    background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
+</style>
   `).appendTo('head');
 
     const propOr = (defaultValue, prop, obj) => {
@@ -215,25 +216,28 @@
 
     const renderTimeGroup = () => {
         const timespan = getTimespan();
-        const timeGroup = makeGroup('Time');
+        const group = makeGroup('Time');
         const hasTimeParts = timespan !== null && timespan.since && timespan.until;
 
-        timeGroup.append(makeButton('&lt;', actionPreviousTimespan, hasTimeParts));
-        timeGroup.append(makeButton('&gt;', actionNextTimespan, hasTimeParts));
-        timeGroup.append(makeButton('Now', actionCurrentTimespan));
-        timeGroup.append(makeButton('Ts', actionSetMaxTimeSeries, hasTimeParts));
-        return timeGroup;
+        group.append(makeButton('&lt;', actionPreviousTimespan, hasTimeParts));
+        group.append(makeButton('&gt;', actionNextTimespan, hasTimeParts));
+        group.append(makeButton('Now', actionCurrentTimespan));
+        group.append(makeButton('Ts', actionSetMaxTimeSeries, hasTimeParts));
+        return group;
     };
 
-    const renderGraphGroup = () => {
-        const graphGroup = makeGroup('Graph');
+    const renderDataGroup = () => {
+        const group = makeGroup('Data');
         const hasCount = getQueryValue('SELECT') === 'count(*)';
         const priorFacet = getSearchParam('priorFacet');
         const priorTimeSeries = getSearchParam('priorTimeSeries');
 
-        graphGroup.append(makeButton('-', () => actionPrepForGraph(false), hasCount));
-        graphGroup.append(makeButton('+', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)));
-        return graphGroup;
+        if (hasCount) {
+            group.append(makeButton('&nbsp;', () => actionPrepForGraph(false), hasCount).addClass('data_icon'));
+        } else {
+            group.append(makeButton('&nbsp;', () => actionPrepForGraph(true), !hasCount && (priorFacet || priorTimeSeries)).addClass('graph_icon'));
+        }
+        return group;
     };
 
     const processContent = () => {
@@ -246,22 +250,23 @@
 
         toolbar.empty();
         toolbar.append(renderTimeGroup);
-        toolbar.append(renderGraphGroup);
+        toolbar.append(renderDataGroup);
     };
 
     const initInsightsToolbar = () => {
-        runQueryButton = $('.query_editor_controls .btn-primary');
+        const runQueryButton = $('.query_editor_controls .btn-primary');
         if (runQueryButton.length && !runQueryButton.hasClass('InsightsToolbar')) {
             runQueryButton.addClass('InsightsToolbar');
             runQueryButton.click(processContent);
-
-            $('.ace_content').bind('DOMSubtreeModified', () => {
-                queryObject = null;
-                processContent();
-            });
-            console.log('Insights Toolbar Ready');
         }
 
+        const content = $('.ace_content');
+        if (content.length && !content.hasClass('InsightsToolbar')) {
+            content.bind('DOMSubtreeModified', () => {
+                queryObject = null;
+                processContent();
+            }).addClass('InsightsToolbar');
+        }
         window.setTimeout(initInsightsToolbar, 1000);
     };
 
