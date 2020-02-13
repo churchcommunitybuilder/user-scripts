@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         New Relic Insights Toolbar
 // @namespace    http://newrelic.com/
-// @version      0.1
+// @version      1.1.0
 // @description  Adds a toolbar to the new relic insights component
 // @author       Jay Kappel
 // @include      https://insights.newrelic.com/*
@@ -10,8 +10,12 @@
 
 (function() {
     const $ = jQuery;
-    let query = '';
+    let queryObject;
     let contentArea, runQueryButton;
+
+    const nrqlTokens = [
+        'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'SINCE', 'UNTIL', 'COMPARE WITH', 'WITH TIMESERIES', 'TIMESERIES', 'AUTO',
+    ];
 
   $(`
   <style>
@@ -24,17 +28,21 @@
   </style>
   `).appendTo('head');
 
+    const propOr = (defaultValue, prop, obj) => {
+        return (obj || {}).hasOwnProperty(prop) ? obj[prop] : defaultValue;
+    };
+
     const getSearchParam = param => {
         const params = new URLSearchParams(window.location.search);
-        return params.get(param);
+        return params.get(param) || '';
     };
 
     const executeQuery = props => {
         const params = new URLSearchParams(window.location.search);
-        params.set('query', query);
+        params.set('query', queryObject.toString());
 
         for(var key in props) {
-            if(props.hasOwnProperty(key) && typeof props[key] !== 'function') {
+            if (props.hasOwnProperty(key) && typeof props[key] !== 'function') {
                 props[key] ? params.set(key, props[key]) : params.delete(key);
             }
         }
@@ -42,53 +50,76 @@
         window.location.search = params.toString();
     }
 
-    const getQueryValue = section => {
-        section = section.toUpperCase();
-        const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-        let index = parts.findIndex(part => part.toUpperCase() === section);
-        if (index < 1 && index !== 0) return null;
-        let value = '';
+    const getQueryText = () => {
+        let text = [];
+        $('.ace_line span').each(function() {
+            text.push(this.innerText);
+        });
+        return text.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')').replace(' (*)', '(*)');
+    };
 
-        switch (section) {
-            case 'SINCE':
-            case 'UNTIL':
-            case 'FACET':
-                value = parts[++index];
-                while (value.lastIndexOf(',') === value.length -1) {
-                    value += ' ' + parts[++index];
+    const buildQueryObject = () => {
+        if (queryObject) return queryObject;
+        queryObject = {};
+
+        //let query = getSearchParam('query');
+        let query = getQueryText();
+        if (!query) return queryObject;
+
+        do {
+            const parts = query.match(/(?:[^\s']+|'[^']*')+/g);
+            const nextTokenIndex = findNextTokenIndex(parts, 1);
+            const values = [];
+
+            for (let c = 1; c < nextTokenIndex; c++) {
+                values.push(parts[c]);
+            }
+
+            queryObject[parts[0].toUpperCase()] = values.join(' ');
+            parts.splice(0, nextTokenIndex);
+            query = parts.join(' ');
+
+        } while (query.length > 0);
+
+        queryObject.toString = () => {
+            let queryParts = [];
+            for(var key in queryObject) {
+                if (queryObject.hasOwnProperty(key) && typeof queryObject[key] !== 'function') {
+                    queryParts.push(key);
+                    queryParts.push(queryObject[key]);
                 }
-                break;
-            case 'TIMESERIES':
-                value = parts[++index] + ' ' + parts[++index];
-                break;
+            }
+            return queryParts.join(' ');
         };
 
-        return value.replace(/'/g, '');;
+        return queryObject;
+    };
+
+    const findNextTokenIndex = (parts, index) => {
+        for (let c = index; c < parts.length; c++) {
+            if (nrqlTokens.includes(parts[c].toUpperCase())) return c;
+        }
+        return parts.length;
+    };
+
+    const getQueryValue = section => {
+        buildQueryObject();
+        return propOr('', section.toUpperCase(), queryObject);
+    };
+
+    const clearQueryValue = section => {
+        buildQueryObject();
+        delete queryObject[section.toUpperCase()];
     };
 
     const setQueryValue = (section, value) => {
         section = section.toUpperCase();
-        const parts = query.match(/(?:[^\s']+|'[^']*')+/g) ;
-        const index = parts.findIndex(part => part.toUpperCase() === section);
+        if (!value) return clearQueryValue(section);
 
-        if (index < 0) {
-            parts.push(section);
-            parts.push(value);
-        } else {
-            switch (section) {
-                case 'SINCE':
-                case 'UNTIL':
-                case 'FACET':
-                    parts[index + 1] = value;
-                    break;
-                case 'TIMESERIES':
-                    parts[index + 1] = value.split(' ')[0];
-                    parts[index + 2] = value.split(' ')[1];
-                    break;
-            }
-        }
-
-        query = parts.join(' ');
+        if (nrqlTokens.includes(section)) {
+            buildQueryObject();
+            queryObject[section] = value;
+        };
     };
 
     const getTimespan = () => {
@@ -149,21 +180,21 @@
         let params = { priorFacet: null, priorTimeSeries: null };
 
         if (showGraph) {
-            query = query.replace(/ \* /,' count(*) ');
+            setQueryValue('SELECT', 'count(*)');
 
             const priorFacet = getSearchParam('priorFacet');
             const priorTimeSeries = getSearchParam('priorTimeSeries');
-            if (priorFacet) query += ' FACET ' + priorFacet;
-            if (priorTimeSeries) query += ' TIMESERIES ' + priorTimeSeries;
+            if (priorFacet) setQueryValue('FACET', priorFacet);
+            if (priorTimeSeries) setQueryValue('TIMESERIES', priorTimeSeries);
         } else {
             params = {
                 priorFacet: getQueryValue('FACET'),
                 priorTimeSeries: getQueryValue('TIMESERIES')
             };
 
-            query = query.replace(/ count\(\*\) /,' * ');
-            query = query.replace(new RegExp(` FACET ${params.priorFacet}`, "ig"), '');
-            query = query.replace(new RegExp(` TIMESERIES ${params.priorTimeSeries}`, "ig"), '');
+            setQueryValue('SELECT', '*');
+            clearQueryValue('TIMESERIES');
+            clearQueryValue('FACET');
         }
 
         executeQuery(params);
@@ -194,7 +225,7 @@
 
     const renderGraphGroup = () => {
         const graphGroup = makeGroup('Graph');
-        const hasCount = query.indexOf('count(*)') > 0;
+        const hasCount = getQueryValue('SELECT') === 'count(*)';
         const priorFacet = getSearchParam('priorFacet');
         const priorTimeSeries = getSearchParam('priorTimeSeries');
 
@@ -203,8 +234,7 @@
         return graphGroup;
     };
 
-    const processUpdatedContent = () => {
-        query = (new URLSearchParams(window.location.search)).get('query') || '';
+    const processContent = () => {
         let toolbar = $('.insights_toolbar');
 
         if (toolbar.length === 0) {
@@ -217,13 +247,21 @@
         toolbar.append(renderGraphGroup);
     };
 
-    const initTimeWalker = () => {
+    const initInsightsToolbar = () => {
         runQueryButton = $('.query_editor_controls .btn-primary');
-        if (runQueryButton.length) {
-            runQueryButton.click(processUpdatedContent);
-            processUpdatedContent();
+        if (runQueryButton.length && !runQueryButton.hasClass('InsightsToolbar')) {
+            runQueryButton.addClass('InsightsToolbar');
+            runQueryButton.click(processContent);
+
+            $('.ace_content').bind('DOMSubtreeModified', () => {
+                queryObject = null;
+                processContent();
+            });
+            console.log('Insights Toolbar Ready');
         }
+
+        window.setTimeout(initInsightsToolbar, 1000);
     };
 
-    $.getScript('https://momentjs.com/downloads/moment.min.js', initTimeWalker)
+    $.getScript('https://momentjs.com/downloads/moment.min.js', initInsightsToolbar)
   })();
