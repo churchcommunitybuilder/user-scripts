@@ -8,6 +8,8 @@
 // @grant        Feel free to do whatever you want with this
 // ==/UserScript==
 
+// TODO - better processing for since and until: all the formats
+
 (function() {
     const $ = jQuery;
     let queryObject;
