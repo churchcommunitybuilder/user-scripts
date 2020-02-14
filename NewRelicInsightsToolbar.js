@@ -12,11 +12,16 @@
 
 (function() {
     const $ = jQuery;
-    let queryObject;
+    const standardDateFormat = 'YYYY-MM-DD HH:mm:ss';
 
-    const nrqlTokens = [
-        'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'SINCE', 'UNTIL', 'COMPARE WITH', 'WITH TIMESERIES', 'TIMESERIES', 'AUTO',
+    const nrqlUnits = [
+        'minute', 'hour', 'day', 'month', 'year',
     ];
+    const nrqlTokens = [
+        'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'SINCE', 'UNTIL', 'COMPARE WITH', 'WITH TIMESERIES', 'TIMESERIES', 'WITH TIMEZONE', 'TIMEZONE', 'AUTO',
+    ];
+
+    let queryObject;
 
   $(`
   <style>
@@ -67,22 +72,16 @@
         if (queryObject) return queryObject;
         queryObject = {};
 
-        //let query = getSearchParam('query');
         let query = getQueryText();
         if (!query) return queryObject;
 
         do {
-            const parts = query.match(/(?:[^\s']+|'[^']*')+/g);
-            const nextTokenIndex = findNextTokenIndex(parts, 1);
-            const values = [];
+            const token = findNextToken(query);
+            query = query.slice(token.name.length).trim();
 
-            for (let c = 1; c < nextTokenIndex; c++) {
-                values.push(parts[c]);
-            }
-
-            queryObject[parts[0].toUpperCase()] = values.join(' ');
-            parts.splice(0, nextTokenIndex);
-            query = parts.join(' ');
+            const nextToken = findNextToken(query);
+            queryObject[token.name] = query.slice(0, nextToken.index).trim();
+            query = query.slice(nextToken.index).trim();
 
         } while (query.length > 0);
 
@@ -100,11 +99,20 @@
         return queryObject;
     };
 
-    const findNextTokenIndex = (parts, index) => {
-        for (let c = index; c < parts.length; c++) {
-            if (nrqlTokens.includes(parts[c].toUpperCase())) return c;
-        }
-        return parts.length;
+    const findNextToken = query => {
+        const token = {
+            index: 1000,
+            name: '',
+        };
+
+        nrqlTokens.forEach(name => {
+            const idx = query.toUpperCase().indexOf(name);
+            if (idx >= 0 && idx < token.index) {
+                token.index = idx;
+                token.name = name;
+            }
+        });
+        return token.name ? token : { index: query.length };
     };
 
     const getQueryValue = section => {
@@ -127,24 +135,125 @@
         };
     };
 
-    const getTimespan = () => {
-        let since = getQueryValue('SINCE');
-        let until = getQueryValue('UNTIL');
-        if (!since || !until) return null;
+    const calcSecondsToUnits = seconds => {
+        let unit = Math.abs(seconds);
+        let modifier = seconds < 0 ? -1 : 1;
 
-        const timespan = {
-            since,
-            until,
-            momentSince: moment(since),
-            momentUntil: moment(until),
+        if (unit < 60) return [unit * modifier, 'seconds'];
+
+        unit /= 60;
+        if (unit < 24) return [unit * modifier, 'minutes'];
+
+        unit /= 60;
+        if (unit < 24) return [unit * modifier, 'hours'];
+
+        unit /= 24;
+        if (unit < 7) return [unit * modifier, 'days'];
+
+        unit /= 7;
+        if (unit <= 52) return [unit * modifier, 'weeks'];
+
+        unit /= 52;
+        return [unit * modifier, 'years'];
+    };
+
+    const processTimeString = timeString => {
+        if (!timeString) return null;
+        const parts = timeString.toLowerCase().split(' ');
+        const time = {};
+
+        switch (parts.length) {
+            case 3:
+                time.ago = timeString;
+                if (parts[1].indexOf('s') != parts[1].length -1) parts[1] += 's';
+                time.date = moment().subtract(parts[0], parts[1]).format(standardDateFormat)
+                break;
+
+            default:
+                time.date = timeString;
+                const seconds = moment(timeString).diff(moment(), 'seconds');
+                const unit = calcSecondsToUnits(seconds);
+                time.ago = `${unit[0]} ${unit[1]} ago`;
+                break;
+        }
+        return time;
+    };
+
+    const getTimespan = () => {
+        const timeSpan = {
+            since: getQueryValue('SINCE').replace(/'/g, "").toLowerCase(),
+            until: getQueryValue('UNTIL').replace(/'/g, "").toLowerCase(),
         };
-        timespan.difference = timespan.momentUntil.diff(timespan.momentSince, 'seconds');
-        return timespan;
+        if (!timeSpan.since) return null;
+        timeSpan.sinceObj = processTimeString(timeSpan.since);
+        timeSpan.untilObj = processTimeString(timeSpan.until);
+        timeSpan.current = actionCurrentTimespan;
+        const sinceParts = timeSpan.since.split(' ');
+
+        if (!timeSpan.until) {
+            timeSpan.next = null;
+
+            switch (sinceParts.length) {
+                case 3:
+                    timeSpan.prev = function() {
+                        setQueryValue('UNTIL', timeSpan.since);
+                        sinceParts[0] *= 2;
+                        if (sinceParts[1].lastIndexOf('s') != sinceParts[1].length -1) sinceParts[1] += 's';
+                        setQueryValue('SINCE', sinceParts.join(' '));
+                        executeQuery();
+                    };
+                    break;
+                default:
+                    timeSpan.prev = () => {
+                        setQueryValue('UNTIL', `'${timeSpan.since}'`);
+                        const momentSince = moment(timeSpan.sinceObj.date);
+                        const diff = moment().diff(momentSince, 'seconds');
+                        setQueryValue('SINCE', `'${momentSince.subtract(diff, 'seconds').format(standardDateFormat)}'`);
+                    };
+                    break;
+            }
+        } else {
+            const momentSince = moment(timeSpan.sinceObj.date);
+            const momentUntil = moment(timeSpan.untilObj.date);
+            const diff = momentSince.diff(momentUntil, 'seconds');
+            const diffUnits = calcSecondsToUnits(diff);
+
+            switch (sinceParts.length) {
+                case 3:
+                    timeSpan.prev = function() {
+                        setQueryValue('UNTIL', timeSpan.since);
+                        sinceParts[0] = parseInt(sinceParts[0], 10) - diffUnits[0];
+                        setQueryValue('SINCE', sinceParts.join(' '));
+                        executeQuery();
+                    };
+                    timeSpan.next = function() {
+                        setQueryValue('SINCE', timeSpan.until);
+                        sinceParts[0] = parseInt(sinceParts[0], 10) + (diffUnits[0] * 2);
+                        setQueryValue('UNTIL', sinceParts.join(' '));
+                        executeQuery();
+                    };
+                    break;
+                default:
+                    timeSpan.prev = () => {
+                        setQueryValue('SINCE', `'${momentSince.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                        setQueryValue('UNTIL', `'${momentUntil.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                        executeQuery();
+                    };
+                    timeSpan.next = () => {
+                        setQueryValue('SINCE', `'${momentSince.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                        setQueryValue('UNTIL', `'${momentUntil.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                        executeQuery();
+                    };
+                    break;
+            }
+        }
+
+        return timeSpan;
     };
 
     const actionCurrentTimespan = () => {
-        const since = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
-        const until = moment().format('YYYY-MM-DD HH:mm:ss');
+        const since = moment().subtract(1, 'day').format(standardDateFormat);
+        const until = moment().format(standardDateFormat);
         setQueryValue('SINCE', `'${since}'`);
         setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
@@ -154,8 +263,8 @@
         const timespan = getTimespan();
         if (!timespan) return;
 
-        const since = timespan.momentSince.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        const until = timespan.momentUntil.add(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        const since = timespan.momentSince.add(timespan.difference, 'seconds').format(standardDateFormat);
+        const until = timespan.momentUntil.add(timespan.difference, 'seconds').format(standardDateFormat);
         setQueryValue('SINCE', `'${since}'`);
         setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
@@ -165,8 +274,8 @@
         const timespan = getTimespan();
         if (!timespan) return;
 
-        const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
-        const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+        const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format(standardDateFormat);
+        const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format(standardDateFormat);
         setQueryValue('SINCE', `'${since}'`);
         setQueryValue('UNTIL', `'${until}'`);
         executeQuery();
@@ -217,13 +326,14 @@
     };
 
     const renderTimeGroup = () => {
-        const timespan = getTimespan();
+        const timeSpan = getTimespan();
         const group = makeGroup('Time');
-        const hasTimeParts = timespan !== null && timespan.since && timespan.until;
+        const hasTimeParts = timeSpan !== null;
+        const nullFunc = () => console.log(timeSpan);
 
-        group.append(makeButton('&lt;', actionPreviousTimespan, hasTimeParts));
-        group.append(makeButton('&gt;', actionNextTimespan, hasTimeParts));
-        group.append(makeButton('Now', actionCurrentTimespan));
+        group.append(makeButton('&lt;', propOr(nullFunc, 'prev', timeSpan), hasTimeParts));
+        group.append(makeButton('&gt;', propOr(nullFunc, 'next', timeSpan), hasTimeParts));
+        group.append(makeButton('Now', propOr(nullFunc, 'current', timeSpan)));
         group.append(makeButton('Ts', actionSetMaxTimeSeries, hasTimeParts));
         return group;
     };
@@ -242,7 +352,7 @@
         return group;
     };
 
-    const processContent = () => {
+    const renderToolbar = () => {
         let toolbar = $('.insights_toolbar');
 
         if (toolbar.length === 0) {
@@ -251,26 +361,28 @@
         }
 
         toolbar.empty();
-        toolbar.append(renderTimeGroup);
-        toolbar.append(renderDataGroup);
+        toolbar.append(renderTimeGroup());
+        toolbar.append(renderDataGroup());
     };
 
     const initInsightsToolbar = () => {
         const runQueryButton = $('.query_editor_controls .btn-primary');
         if (runQueryButton.length && !runQueryButton.hasClass('InsightsToolbar')) {
             runQueryButton.addClass('InsightsToolbar');
-            runQueryButton.click(processContent);
+            runQueryButton.click(renderToolbar);
         }
 
         const content = $('.ace_content');
         if (content.length && !content.hasClass('InsightsToolbar')) {
             content.bind('DOMSubtreeModified', () => {
                 queryObject = null;
-                processContent();
+                buildQueryObject();
+                renderToolbar();
             }).addClass('InsightsToolbar');
         }
+
         window.setTimeout(initInsightsToolbar, 1000);
     };
 
-    $.getScript('https://momentjs.com/downloads/moment.min.js', initInsightsToolbar)
+    $.getScript('https://momentjs.com/downloads/moment.min.js', initInsightsToolbar);
   })();
