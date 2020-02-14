@@ -59,7 +59,11 @@
         $('.ace_line span').each(function() {
             text.push(this.innerText);
         });
-        return text.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')').replace(' (*)', '(*)');
+        return text.join(' ')
+            .replace(/\( /g, '(') // clean up open parens
+            .replace(/ \)/g, ')') // clean up close parens
+            .replace(' (*)', '(*)') // clean up count(*)
+            .replace(' /', '/'); // clean up America /Denver
     };
 
     const buildQueryObject = () => {
