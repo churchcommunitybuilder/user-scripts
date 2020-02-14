@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         New Relic Insights Toolbar
 // @namespace    http://newrelic.com/
-// @version      1.1.1
+// @version      1.1.0
 // @description  Adds a toolbar to the new relic insights component
 // @author       Jay Kappel
 // @include      https://insights.newrelic.com/*
@@ -26,7 +26,7 @@
             .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
             .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; height: 27px; min-width: 27px; }
             .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
-            .insights_toolbar .data_icon { background: url(${imageBucket}Icon-whitepaper.png);
+            .insights_toolbar .data_icon { background: url(${imageBucket}icon-whitepaper.png);
                                            background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
             .insights_toolbar .graph_icon { background: url(${imageBucket}icon-graph.png);
                                             background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
