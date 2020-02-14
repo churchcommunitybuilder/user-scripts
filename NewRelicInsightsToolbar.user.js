@@ -10,6 +10,7 @@
 
 (function() {
     const $ = jQuery;
+    const imageBucket = 'https://github.com/churchcommunitybuilder/user-scripts/raw/master/images/';
     const standardDateFormat = 'YYYY-MM-DD HH:mm:ss';
     const nrqlTokens = [
         'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'COMPARE WITH', 'SINCE', 'UNTIL', 'TIMESERIES', 'WITH TIMEZONE', 'AUTO',
@@ -25,9 +26,9 @@
             .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
             .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; height: 27px; min-width: 27px; }
             .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
-            .insights_toolbar .data_icon { background: url(https://1tskcg39n5iu1jl9xp2ze2ma-wpengine.netdna-ssl.com/wp-content/themes/spanning/images/icons/white/SPAN_WH_Icon_Whitepaper.png);
-                                        background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
-            .insights_toolbar .graph_icon { background: url(https://www.clearpeach.com/wp-content/uploads/bar-graph-icon-300x300.png);
+            .insights_toolbar .data_icon { background: url(${imageBucket}Icon-whitepaper.png);
+                                           background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
+            .insights_toolbar .graph_icon { background: url(${imageBucket}icon-graph.png);
                                             background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
         </style>
     `).appendTo('head');
