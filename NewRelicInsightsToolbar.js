@@ -8,35 +8,29 @@
 // @grant        Feel free to do whatever you want with this
 // ==/UserScript==
 
-// TODO - better processing for since and until: all the formats
-
 (function() {
     const $ = jQuery;
     const standardDateFormat = 'YYYY-MM-DD HH:mm:ss';
-
-    const nrqlUnits = [
-        'minute', 'hour', 'day', 'month', 'year',
-    ];
     const nrqlTokens = [
-        'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'SINCE', 'UNTIL', 'COMPARE WITH', 'WITH TIMESERIES', 'TIMESERIES', 'WITH TIMEZONE', 'TIMEZONE', 'AUTO',
+        'SELECT', 'FROM', 'WHERE', 'FACET', 'LIMIT', 'COMPARE WITH', 'SINCE', 'UNTIL', 'TIMESERIES', 'WITH TIMEZONE', 'AUTO',
     ];
 
     let queryObject;
 
-  $(`
-  <style>
-    .query_editor_box { min-height: 65px; }
-    .insights_toolbar { position:absolute; bottom: -32px; right: 3px; user-select: none; }
-    .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
-    .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
-    .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; height: 27px; min-width: 27px; }
-    .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
-    .insights_toolbar .data_icon { background: url(https://1tskcg39n5iu1jl9xp2ze2ma-wpengine.netdna-ssl.com/wp-content/themes/spanning/images/icons/white/SPAN_WH_Icon_Whitepaper.png);
-                                   background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
-    .insights_toolbar .graph_icon { background: url(https://www.clearpeach.com/wp-content/uploads/bar-graph-icon-300x300.png);
-                                    background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
-</style>
-  `).appendTo('head');
+    $(`
+        <style>
+            .query_editor_box { min-height: 65px; }
+            .insights_toolbar { position:absolute; bottom: -32px; right: 3px; user-select: none; }
+            .insights_toolbar .group { border-radius: 4px; background-color: black; padding: 2px; display: inline-block; margin-left: 3px; }
+            .insights_toolbar .group .title { font-size: 8px; margin-bottom: 3px; text-align: center; color: white; }
+            .insights_toolbar .btn-primary { display: inline-block; margin: 2px; padding: 4px 10px; cursor: pointer; border-radius: 1px; height: 27px; min-width: 27px; }
+            .insights_toolbar .disabled { opacity: 0.7; cursor: default; }
+            .insights_toolbar .data_icon { background: url(https://1tskcg39n5iu1jl9xp2ze2ma-wpengine.netdna-ssl.com/wp-content/themes/spanning/images/icons/white/SPAN_WH_Icon_Whitepaper.png);
+                                        background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
+            .insights_toolbar .graph_icon { background: url(https://www.clearpeach.com/wp-content/uploads/bar-graph-icon-300x300.png);
+                                            background-color: #5F86CC; background-repeat: no-repeat; background-size: 19px 19px; background-position: 4px 4px; }
+        </style>
+    `).appendTo('head');
 
     const propOr = (defaultValue, prop, obj) => {
         return (obj || {}).hasOwnProperty(prop) ? obj[prop] : defaultValue;
@@ -82,7 +76,6 @@
             const nextToken = findNextToken(query);
             queryObject[token.name] = query.slice(0, nextToken.index).trim();
             query = query.slice(nextToken.index).trim();
-
         } while (query.length > 0);
 
         queryObject.toString = () => {
@@ -115,14 +108,14 @@
         return token.name ? token : { index: query.length };
     };
 
-    const getQueryValue = section => {
-        buildQueryObject();
-        return propOr('', section.toUpperCase(), queryObject);
-    };
-
     const clearQueryValue = section => {
         buildQueryObject();
         delete queryObject[section.toUpperCase()];
+    };
+
+    const getQueryValue = section => {
+        buildQueryObject();
+        return propOr('', section.toUpperCase(), queryObject);
     };
 
     const setQueryValue = (section, value) => {
@@ -163,13 +156,13 @@
         const time = {};
 
         switch (parts.length) {
-            case 3:
+            case 3: // Format example: 1 day ago
                 time.ago = timeString;
                 if (parts[1].indexOf('s') != parts[1].length -1) parts[1] += 's';
                 time.date = moment().subtract(parts[0], parts[1]).format(standardDateFormat)
                 break;
 
-            default:
+            default: // Format example: 2020-01-01 15:30:00
                 time.date = timeString;
                 const seconds = moment(timeString).diff(moment(), 'seconds');
                 const unit = calcSecondsToUnits(seconds);
@@ -183,15 +176,23 @@
         const timeSpan = {
             since: getQueryValue('SINCE').replace(/'/g, "").toLowerCase(),
             until: getQueryValue('UNTIL').replace(/'/g, "").toLowerCase(),
+            current: () => {
+                setQueryValue('TIMESERIES', '4 minutes');
+                setQueryValue('SINCE', '1 day ago');
+                clearQueryValue('UNTIL');
+                executeQuery();
+            },
         };
         if (!timeSpan.since) return null;
+
         timeSpan.sinceObj = processTimeString(timeSpan.since);
         timeSpan.untilObj = processTimeString(timeSpan.until);
-        timeSpan.current = actionCurrentTimespan;
         const sinceParts = timeSpan.since.split(' ');
+        const momentSince = moment(timeSpan.sinceObj.date);
 
         if (!timeSpan.until) {
             timeSpan.next = null;
+            timeSpan.difference = momentSince.diff(moment(), 'seconds');
 
             switch (sinceParts.length) {
                 case 3:
@@ -207,85 +208,52 @@
                     timeSpan.prev = () => {
                         setQueryValue('UNTIL', `'${timeSpan.since}'`);
                         const momentSince = moment(timeSpan.sinceObj.date);
-                        const diff = moment().diff(momentSince, 'seconds');
-                        setQueryValue('SINCE', `'${momentSince.subtract(diff, 'seconds').format(standardDateFormat)}'`);
+                        const diff = momentSince.diff(moment(), 'seconds');
+                        setQueryValue('SINCE', `'${momentSince.add(diff, 'seconds').format(standardDateFormat)}'`);
                     };
                     break;
             }
         } else {
-            const momentSince = moment(timeSpan.sinceObj.date);
+            const untilParts = timeSpan.until.split(' ');
             const momentUntil = moment(timeSpan.untilObj.date);
-            const diff = momentSince.diff(momentUntil, 'seconds');
-            const diffUnits = calcSecondsToUnits(diff);
+            timeSpan.difference = momentSince.diff(momentUntil, 'seconds');
+            const diffUnits = calcSecondsToUnits(timeSpan.difference);
 
-            switch (sinceParts.length) {
-                case 3:
-                    timeSpan.prev = function() {
-                        setQueryValue('UNTIL', timeSpan.since);
-                        sinceParts[0] = parseInt(sinceParts[0], 10) - diffUnits[0];
-                        setQueryValue('SINCE', sinceParts.join(' '));
-                        executeQuery();
-                    };
-                    timeSpan.next = function() {
-                        setQueryValue('SINCE', timeSpan.until);
-                        sinceParts[0] = parseInt(sinceParts[0], 10) + (diffUnits[0] * 2);
-                        setQueryValue('UNTIL', sinceParts.join(' '));
-                        executeQuery();
-                    };
-                    break;
-                default:
-                    timeSpan.prev = () => {
-                        setQueryValue('SINCE', `'${momentSince.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
-                        setQueryValue('UNTIL', `'${momentUntil.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
-                        executeQuery();
-                    };
-                    timeSpan.next = () => {
-                        setQueryValue('SINCE', `'${momentSince.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
-                        setQueryValue('UNTIL', `'${momentUntil.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
-                        executeQuery();
-                    };
-                    break;
+            if (sinceParts.length === 3 && sinceParts[1].replace(/s/g,"") === untilParts[1].replace(/s/g,"")) {
+                timeSpan.prev = function() {
+                    setQueryValue('UNTIL', timeSpan.since);
+                    sinceParts[0] = parseInt(sinceParts[0], 10) - diffUnits[0];
+                    setQueryValue('SINCE', sinceParts.join(' '));
+                    executeQuery();
+                };
+                timeSpan.next = function() {
+                    setQueryValue('SINCE', timeSpan.until);
+                    sinceParts[0] = parseInt(sinceParts[0], 10) + (diffUnits[0] * 2);
+                    setQueryValue('UNTIL', sinceParts.join(' '));
+                    executeQuery();
+                };
+            } else {
+                timeSpan.prev = () => {
+                    setQueryValue('SINCE', `'${momentSince.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                    setQueryValue('UNTIL', `'${momentUntil.add(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                    executeQuery();
+                };
+                timeSpan.next = () => {
+                    setQueryValue('SINCE', `'${momentSince.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                    setQueryValue('UNTIL', `'${momentUntil.subtract(diffUnits[0], diffUnits[1]).format(standardDateFormat)}'`);
+                    executeQuery();
+                };
             }
         }
 
         return timeSpan;
     };
 
-    const actionCurrentTimespan = () => {
-        const since = moment().subtract(1, 'day').format(standardDateFormat);
-        const until = moment().format(standardDateFormat);
-        setQueryValue('SINCE', `'${since}'`);
-        setQueryValue('UNTIL', `'${until}'`);
-        executeQuery();
-    };
-
-    const actionNextTimespan = () => {
-        const timespan = getTimespan();
-        if (!timespan) return;
-
-        const since = timespan.momentSince.add(timespan.difference, 'seconds').format(standardDateFormat);
-        const until = timespan.momentUntil.add(timespan.difference, 'seconds').format(standardDateFormat);
-        setQueryValue('SINCE', `'${since}'`);
-        setQueryValue('UNTIL', `'${until}'`);
-        executeQuery();
-    };
-
-    const actionPreviousTimespan = () => {
-        const timespan = getTimespan();
-        if (!timespan) return;
-
-        const since = timespan.momentSince.subtract(timespan.difference, 'seconds').format(standardDateFormat);
-        const until = timespan.momentUntil.subtract(timespan.difference, 'seconds').format(standardDateFormat);
-        setQueryValue('SINCE', `'${since}'`);
-        setQueryValue('UNTIL', `'${until}'`);
-        executeQuery();
-    };
-
     const actionSetMaxTimeSeries = () => {
         const timespan = getTimespan();
         if (!timespan) return;
 
-        const max = Math.ceil(timespan.difference / 60 / 366);
+        const max = Math.ceil(Math.abs(timespan.difference) / 60 / 366);
         setQueryValue('TIMESERIES', `${max} minutes`);
         executeQuery();
     };
