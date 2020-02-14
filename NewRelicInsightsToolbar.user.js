@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         New Relic Insights Toolbar
 // @namespace    http://newrelic.com/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Adds a toolbar to the new relic insights component
 // @author       Jay Kappel
 // @include      https://insights.newrelic.com/*
