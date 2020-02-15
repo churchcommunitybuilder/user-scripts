@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         New Relic Insights Toolbar
 // @namespace    http://newrelic.com/
-// @version      1.1.0
+// @version      1.1.1
 // @description  Adds a toolbar to the new relic insights component
 // @author       Jay Kappel
 // @include      https://insights.newrelic.com/*
@@ -56,16 +56,13 @@
     }
 
     const getQueryText = () => {
-        let text = [];
-        $('.ace_line span').each(function() {
-            text.push(this.innerText);
+        const query = [];
+        $('.ace_line').each((idx, item) => {
+            const text = $(item).text().replace('·', '');
+            query.push(text.trim());
         });
-        return text.join(' ')
-            .replace(/\( /g, '(') // clean up open parens
-            .replace(/ \)/g, ')') // clean up close parens
-            .replace(' (*)', '(*)') // clean up count(*)
-            .replace(' /', '/'); // clean up America /Denver
-    };
+        return query.join(' ');
+    }
 
     const buildQueryObject = () => {
         if (queryObject) return queryObject;
@@ -87,13 +84,11 @@
             let queryParts = [];
             for(var key in queryObject) {
                 if (queryObject.hasOwnProperty(key) && typeof queryObject[key] !== 'function') {
-                    queryParts.push(key);
-                    queryParts.push(queryObject[key]);
+                    queryParts.push(`${key} ${queryObject[key]}`);
                 }
             }
             return queryParts.join(' ');
         };
-
         return queryObject;
     };
 
@@ -160,19 +155,15 @@
         const parts = timeString.toLowerCase().split(' ');
         const time = {};
 
-        switch (parts.length) {
-            case 3: // Format example: 1 day ago
-                time.ago = timeString;
-                if (parts[1].indexOf('s') != parts[1].length -1) parts[1] += 's';
-                time.date = moment().subtract(parts[0], parts[1]).format(standardDateFormat)
-                break;
-
-            default: // Format example: 2020-01-01 15:30:00
+        if (parts.length === 3) { // Format example: 1 day ago
+            time.ago = timeString;
+            if (parts[1].indexOf('s') != parts[1].length -1) parts[1] += 's';
+            time.date = moment().subtract(parts[0], parts[1]).format(standardDateFormat)
+        } else { // Format example: 2020-01-01 15:30:00
                 time.date = timeString;
                 const seconds = moment(timeString).diff(moment(), 'seconds');
                 const unit = calcSecondsToUnits(seconds);
                 time.ago = `${unit[0]} ${unit[1]} ago`;
-                break;
         }
         return time;
     };
