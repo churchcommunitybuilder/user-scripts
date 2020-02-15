@@ -61,7 +61,8 @@
             const text = $(item).text().replace('·', '');
             query.push(text.trim());
         });
-        return query.join(' ');
+        return query.join(' ')
+            .replace(' /', '/'); // fix America /Denver issue
     }
 
     const buildQueryObject = () => {
