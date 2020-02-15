@@ -225,7 +225,11 @@
                 timeSpan.next = function() {
                     setQueryValue('SINCE', timeSpan.until);
                     sinceParts[0] = parseInt(sinceParts[0], 10) + (diffUnits[0] * 2);
-                    setQueryValue('UNTIL', sinceParts.join(' '));
+                    if (sinceParts[0] < 1) {
+                        clearQueryValue('UNTIL');
+                    } else {
+                        setQueryValue('UNTIL', sinceParts.join(' '));
+                    }
                     executeQuery();
                 };
             } else {
