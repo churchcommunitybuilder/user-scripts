@@ -10,6 +10,7 @@
 // ==/UserScript==
 
 (function() {
+  const $ = jQuery;
 
   const getJsonObject = text => {
     const start = text.indexOf('{');
@@ -30,8 +31,9 @@
             extra: text.substring(c+1).trim(),
           };
 
-          if (result.extra.charAt(0) === '{')
+          if (result.extra.charAt(0) === '{') {
               result.extra = JSON.parse(result.extra);
+          }
           return result;
         }
       };
