@@ -5,7 +5,6 @@
 // @description  Adds a toolbar to the new relic insights component
 // @author       Jay Kappel
 // @include      https://insights.newrelic.com/*
-// @grant        Feel free to do whatever you want with this
 // ==/UserScript==
 
 (function() {
